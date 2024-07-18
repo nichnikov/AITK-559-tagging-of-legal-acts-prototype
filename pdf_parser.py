@@ -49,8 +49,9 @@ def text_extract_from_page(pdf_path: str, pages_quantity: int):
 
 
 # "test1_en.pdf"
-pdf_path = os.path.join("data", "test2_ru.pdf")
-pages_texts = text_extract_from_page(pdf_path, 5)
+if __name__ == "__main__":
+    pdf_path = os.path.join("data", "test2_ru.pdf")
+    pages_texts = text_extract_from_page(pdf_path, 5)
 
-for p_tx in pages_texts:
-    print(p_tx) 
+    for p_tx in pages_texts:
+        print(p_tx) 

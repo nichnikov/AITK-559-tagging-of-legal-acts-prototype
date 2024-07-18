@@ -8,10 +8,13 @@ load_dotenv()
 
 LLM_URL = os.getenv('LLM_URL')
 
-pdf_path = os.path.join("data", "test2_ru.pdf")
+pdf_path = os.path.join("data", "act08a.pdf")
 
 texts_by_pages = text_extract_from_page(pdf_path, 5)
+for p_tx in texts_by_pages:
+    print(p_tx)
 
+'''
 temp = 0.5
 
 for p_tx in texts_by_pages:
@@ -29,3 +32,4 @@ for p_tx in texts_by_pages:
     short_text = re.sub("Короткий текст:", "", res_dct["choices"][0]["message"]["content"])
 
     print("\ntext:", p_tx, "\nshort text:", short_text)
+'''
