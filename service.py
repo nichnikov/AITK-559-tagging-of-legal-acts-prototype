@@ -2,31 +2,33 @@ import os, io, re,json, requests
 import pandas as pd
 from dotenv import load_dotenv
 from pdf_parser import text_extract_from_page
-
-def promt_create(promts_dic: dict, doc: str):
-    for intent in promts_dic:
-        act_fragment = re.findall(prompts_json[intent]["reg"], doc, re.IGNORECASE)
-        if act_fragment:
-            return {"intent:": intent, "promt": " ".join([prompts_json[intent]["prompt_start"], act_fragment[0], prompts_json[intent]["prompt_finish"]])}
-        else:
-            return {"intent:": intent, "promt": None}
+from sqlalchemy import create_engine, text, delete, table
 
 
 load_dotenv()
 
 LLM_URL = os.getenv('LLM_URL')
 
-files_pathes_df = pd.read_csv(os.path.join("data", "pravoru_documents_uploded_202407111233.txt"), sep="|")
-s3_url = "https://s3-documents.prod.dataplatform.aservices.tech/"
-
 with open(os.path.join("data", "prompts.json"), "r") as jf:
     prompts_json = json.load(jf)
 
+conn_string = os.environ['SQLALCHEMY_CON']
+engine = create_engine(conn_string)
+
+conn = engine.connect() 
+
+files_pathes_df = pd.read_sql_query('SELECT * FROM public.documents LIMIT 10', con=engine)
+print("df from BD:", files_pathes_df)
 
 
 temp = 0.0
-for d in files_pathes_df.to_dict(orient="records")[:25]:
-    pdf_path = s3_url + d["path_file_in_baquet_s3"]
+    
+result = []
+for d in files_pathes_df.to_dict(orient="records"):
+    pdf_link_resp = requests.get(d["s3_link"])
+    link_d = pdf_link_resp.json()
+    pdf_path = link_d["Link"]
+    
     pdf_path = re.sub("\s+", "", pdf_path)
 
     response = requests.get(pdf_path)
@@ -58,9 +60,14 @@ for d in files_pathes_df.to_dict(orient="records")[:25]:
                 res_dct = r.json()
                 
                 result_text = res_dct["choices"][0]["message"]["content"]
-                print("\n", "интент:", intent)                
-                print(message, "\n", "result:", result_text)
+                d["meta_type"] = intent
+                d["meta_value"] = re.sub(r"\(|\)", "", result_text)
+                result.append(d)
                 
             else:
                 print("НЕТ ФРАГМЕНТА")
-                
+
+result_df = pd.DataFrame(result)
+
+result_df.to_sql("public.documents_with_meta", con=conn, if_exists='append', index=False)
+conn.close()
