@@ -24,7 +24,7 @@ with open(os.path.join("data", "prompts.json"), "r") as jf:
 
 
 
-temp = 0.5
+temp = 0.0
 for d in files_pathes_df.to_dict(orient="records")[:25]:
     pdf_path = s3_url + d["path_file_in_baquet_s3"]
     pdf_path = re.sub("\s+", "", pdf_path)
