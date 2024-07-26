@@ -17,57 +17,57 @@ engine = create_engine(conn_string)
 
 conn = engine.connect() 
 
-files_pathes_df = pd.read_sql_query('SELECT * FROM public.documents LIMIT 10', con=engine)
-print("df from BD:", files_pathes_df)
-
+files_pathes_chunks = pd.read_sql_query('SELECT * FROM public.documents LIMIT 200', con=engine, chunksize=50)
 
 temp = 0.0
-    
+  
 result = []
-for d in files_pathes_df.to_dict(orient="records"):
-    pdf_link_resp = requests.get(d["s3_link"])
-    link_d = pdf_link_resp.json()
-    pdf_path = link_d["Link"]
-    
-    pdf_path = re.sub("\s+", "", pdf_path)
+for files_pathes_df in files_pathes_chunks:
+    print("df from BD:", files_pathes_df)
+    for d in files_pathes_df.to_dict(orient="records"):
+        pdf_link_resp = requests.get(d["s3_link"])
+        link_d = pdf_link_resp.json()
+        pdf_path = link_d["Link"]
+        
+        pdf_path = re.sub("\s+", "", pdf_path)
 
-    response = requests.get(pdf_path)
-    
-    response = requests.get(pdf_path)
+        response = requests.get(pdf_path)
+        
+        response = requests.get(pdf_path)
 
-    output = io.BytesIO(response.content)
+        output = io.BytesIO(response.content)
 
-    pages_texts = text_extract_from_page(output, 30)
+        pages_texts = text_extract_from_page(output, 30)
 
-    doc = ""
-    for p_tx in pages_texts:
-        doc += p_tx
-    
-    doc_text = re.sub("\n|\s+", " ", doc)
+        doc = ""
+        for p_tx in pages_texts:
+            doc += p_tx
+        
+        doc_text = re.sub("\n|\s+", " ", doc)
 
-    for intent in prompts_json:
-        if intent == "claim":
-            act_fragment = re.findall(prompts_json[intent]["reg"], doc_text, re.IGNORECASE)
-            if act_fragment:
-                message = " ".join([prompts_json[intent]["prompt_start"], act_fragment[0], prompts_json[intent]["prompt_finish"]])
-                js_data = {
-                            "temperature": temp,
-                            "model": "openchat_3.5",
-                            "messages": [{"role": "user", "content": str(message)}]
-                            }
+        for intent in prompts_json:
+            if intent == "claim":
+                act_fragment = re.findall(prompts_json[intent]["reg"], doc_text, re.IGNORECASE)
+                if act_fragment:
+                    message = " ".join([prompts_json[intent]["prompt_start"], act_fragment[0], prompts_json[intent]["prompt_finish"]])
+                    js_data = {
+                                "temperature": temp,
+                                "model": "openchat_3.5",
+                                "messages": [{"role": "user", "content": str(message)}]
+                                }
 
-                r = requests.post(LLM_URL, json=js_data)
-                res_dct = r.json()
-                
-                result_text = res_dct["choices"][0]["message"]["content"]
-                d["meta_type"] = intent
-                d["meta_value"] = re.sub(r"\(|\)", "", result_text)
-                result.append(d)
-                
-            else:
-                print("НЕТ ФРАГМЕНТА")
+                    r = requests.post(LLM_URL, json=js_data)
+                    res_dct = r.json()
+                    
+                    result_text = res_dct["choices"][0]["message"]["content"]
+                    d["meta_type"] = intent
+                    d["meta_value"] = re.sub(r"\(|\)", "", result_text)
+                    result.append(d)
+                    
+                else:
+                    print("НЕТ ФРАГМЕНТА")
 
-result_df = pd.DataFrame(result)
+    result_df = pd.DataFrame(result)
+    result_df.to_sql("documents_with_meta", con=conn, if_exists='append', index=False)
 
-result_df.to_sql("public.documents_with_meta", con=conn, if_exists='append', index=False)
 conn.close()
