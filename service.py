@@ -17,13 +17,12 @@ engine = create_engine(conn_string)
 
 conn = engine.connect() 
 
-files_pathes_chunks = pd.read_sql_query('SELECT * FROM public.documents LIMIT 200', con=engine, chunksize=50)
+files_pathes_chunks = pd.read_sql_query('SELECT * FROM public.documents LIMIT 10000', con=engine, chunksize=1000)
 
 temp = 0.0
   
 result = []
 for files_pathes_df in files_pathes_chunks:
-    print("df from BD:", files_pathes_df)
     for d in files_pathes_df.to_dict(orient="records"):
         pdf_link_resp = requests.get(d["s3_link"])
         link_d = pdf_link_resp.json()
@@ -49,6 +48,7 @@ for files_pathes_df in files_pathes_chunks:
             if intent == "claim":
                 act_fragment = re.findall(prompts_json[intent]["reg"], doc_text, re.IGNORECASE)
                 if act_fragment:
+                    d["act_fragment"] = act_fragment[0]
                     message = " ".join([prompts_json[intent]["prompt_start"], act_fragment[0], prompts_json[intent]["prompt_finish"]])
                     js_data = {
                                 "temperature": temp,
@@ -58,7 +58,6 @@ for files_pathes_df in files_pathes_chunks:
 
                     r = requests.post(LLM_URL, json=js_data)
                     res_dct = r.json()
-                    
                     result_text = res_dct["choices"][0]["message"]["content"]
                     d["meta_type"] = intent
                     d["meta_value"] = re.sub(r"\(|\)", "", result_text)
